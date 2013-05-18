@@ -1,8 +1,6 @@
 JavaScript DSL for Scala
 ========================
 
-JavaScript DSL for Scala
-
 Scalaのコード中に静的型付けのJavaScriptのコードを書けることを目標としたライブラリです。
 
 主な目的はView中に挿入する粒度の小さいJavaScriptコードを書くことですが、もっと大規模なコードも書けるかどうかのテストも兼ねています。
