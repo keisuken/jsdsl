@@ -5,21 +5,24 @@ import collection.mutable.{HashMap, ListBuffer}
 /*
 
 Class tree:
-  JSAny
-    Constant
-      CBoolean: true, false
-      CInt: 123456L
-      CDouble: 1234.5678D
-      CString: "Hello, world!"
-    Context
-      Value
-        VBoolean
-        VLong
-        VDouble
-        VString
-        VArray
-        VMap
-        VObject
+  Constant
+  Context
+    JSNull with Constant
+    JSBoolean
+      CBoolean with Constant
+      VBoolean with Value
+    JSInt
+      CInt with Constant
+      VInt with Value
+    JSDouble
+      CDouble with Constant
+      VDouble with Value
+    JSString
+      CString with Constant
+      VString with Value
+    VArray with Value
+    VMap with Value
+    VObject with Value
 
 operators:
   + - * / %
@@ -46,28 +49,53 @@ functions:
 
 class JavaScript {
 
-  trait JSAny
+  class CompileException(message: String, t: Throwable)
+    extends Exception(message, t) {
+    def this(message: String) = this(message, null)
+  }
 
-  trait Constant extends JSAny
-  case class CBoolean(value: Boolean) extends Constant
-  case class CInt(value: Int) extends Constant
-  case class CDouble(value: Double) extends Constant
-  case class CString(value: String) extends Constant
-
-  trait Context extends JSAny {
+  trait Context {
     def source(out: Writer)
   }
-  trait Value extends Context {
+
+  trait Constant[T] {
+    def value: T
+    def source(out: Writer) {
+      literal(value, out)
+    }
+  }
+
+  trait Value {
     def name: Symbol
     def source(out: Writer) {
       out.write(name.name)
     }
   }
-  case class VBoolean(name: Symbol) extends Value
-  case class VInt(name: Symbol) extends Value
-  case class VDouble(name: Symbol) extends Value
-  case class VString(name: Symbol) extends Value
-  case class VObject(name: Symbol) extends Value
+
+  trait Add[T] extends Context {
+    def operator: String
+    def values: Seq[T]
+    def source(out: Writer) {
+      implode(values, operator, out)
+    }
+  }
+
+  object JSNull extends Context with Constant[AnyRef] {
+    def value: Object = null
+  }
+
+  trait JSInt extends Context
+  case class CInt(value: Int) extends JSInt with Constant[Int] {
+    def +(name: Symbol): AddInt =
+      AddInt(List(this, VInt(name)))
+  }
+  case class VInt(name: Symbol) extends JSInt with Value
+
+  case class AddInt(values: Seq[JSInt]) extends JSInt with Add[JSInt] with Value {
+    def operator: String = " + "
+    def +(value: Int): AddInt = AddInt(values :+ CInt(value))
+    def +(value: VInt): AddInt = AddInt(values :+ value)
+  }
 
   class BlockContext(prefix: String, suffix: String) extends Context {
     val values = HashMap[Symbol, Value]()
@@ -92,18 +120,15 @@ class JavaScript {
     }
   }
 
-  case class Add(values: Seq[JSAny]) {
+  case class DefineVal(name: Symbol, value: Context) extends Context {
+    def source(out: Writer) {
+      out.write("var ")
+      out.write(name.name)
+      out.write(" = ")
+      literal(value, out)
+      out.write(";")
+    }
   }
-
-  case class Sub(values: Seq[JSAny]) {
-  }
-
-  case class Multi(values: Seq[JSAny]) {
-  }
-
-  case class Divide(values: Seq[JSAny]) {
-  }
-
 
 
 /*
@@ -138,21 +163,27 @@ class JavaScript {
   protected def literal(value: Any, out: Writer): Unit =
     value match {
       case null => out.write("null")
+      case c: Context @unchecked => c.source(out)
       case v: Boolean => if (v) out.write("true") else out.write("false")
+      case v: Int => out.write(v.toString)
       case v: String => string(v, out)
-      case v => out.write(v.toString)
+      case _ =>
+        throw new CompileException("Illegal literal or value: " + value)
     }
 
-  protected def csv(values: Seq[Any], out: Writer) {
+  protected def implode(values: Seq[Any], sep: String, out: Writer) {
     val itr = values.iterator
     if (itr.hasNext) {
       literal(itr.next, out)
     }
     while (itr.hasNext) {
-      out.write(", ")
+      out.write(sep)
       literal(itr.next, out)
     }
   }
+
+  protected def csv(values: Seq[Any], out: Writer): Unit =
+    implode(values, ", ", out)
 
   def source(out: Writer): Unit = root.source(out)
 
@@ -162,26 +193,26 @@ class JavaScript {
     out.toString
   }
 
-
-  // 
   object Val {
-    def update[T](name: Symbol, value: T): T = {
-      println(s"var ${name} = ${value}")
+    def update[T <: Context](name: Symbol, value: T): T = {
+      current += DefineVal(name, value)
       value
     }
   }
 
 
-//  implicit def int2value(value: Int) = new JSValue(TYPE_INT, value)
+  implicit def int2value(value: Int) = CInt(value)
 
 
   /*------------------------------------------------------------------
     JavaScript values.
   ------------------------------------------------------------------*/
 
-  val console = new {
+  object Console {
     def log(message: String) {
       current += CallMethod("console.log", List(message))
     }
   }
+
+  val console = Console
 }

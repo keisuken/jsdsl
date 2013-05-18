@@ -1,1 +1,1 @@
-scalac -d classes src/*.scala
+scalac -feature -language:implicitConversions -unchecked -d classes src\*.scala
