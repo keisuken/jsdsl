@@ -1,5 +1,5 @@
-jsdsl
-=====
+JavaScript DSL for Scala
+========================
 
 JavaScript DSL for Scala
 
