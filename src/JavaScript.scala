@@ -72,30 +72,60 @@ class JavaScript {
     }
   }
 
-  trait Add[T] extends Context {
-    def operator: String
-    def values: Seq[T]
-    def source(out: Writer) {
-      implode(values, operator, out)
-    }
-  }
-
   object JSNull extends Context with Constant[AnyRef] {
     def value: Object = null
   }
 
-  trait JSInt extends Context
-  case class CInt(value: Int) extends JSInt with Constant[Int] {
-    def +(name: Symbol): AddInt =
-      AddInt(List(this, VInt(name)))
-  }
-  case class VInt(name: Symbol) extends JSInt with Value
+  /*------------------------------------------------------------------
+    Int
+  ------------------------------------------------------------------*/
 
-  case class AddInt(values: Seq[JSInt]) extends JSInt with Add[JSInt] with Value {
-    def operator: String = " + "
-    def +(value: Int): AddInt = AddInt(values :+ CInt(value))
-    def +(value: VInt): AddInt = AddInt(values :+ value)
+  trait JSInt extends Context {
+    def +(value: JSInt): AddInt =
+      AddInt(List(this, value))
+    def -(value: JSInt): SubInt =
+      SubInt(List(this, value))
   }
+
+  case class CInt(value: Int) extends JSInt with Constant[Int] {
+  }
+
+  case class VInt(name: Symbol) extends JSInt with Value {
+  }
+
+  case class AddInt(values: Seq[JSInt]) extends JSInt {
+    def source(out: Writer) {
+      implode(values, " + ", out)
+    }
+  }
+
+  case class SubInt(values: Seq[JSInt]) extends JSInt {
+    def source(out: Writer) {
+      implode(values, " - ", out)
+    }
+  }
+
+  /*------------------------------------------------------------------
+    String
+  ------------------------------------------------------------------*/
+
+  trait JSString extends Context {
+    def +(value: JSString): AddString =
+      AddString(List(this, value))
+  }
+
+  case class CString(value: String) extends JSString with Constant[String] {
+  }
+
+  case class VString(name: Symbol) extends JSString with Value {
+  }
+
+  case class AddString(values: Seq[JSString]) extends JSString {
+    def source(out: Writer) {
+      implode(values, " + ", out)
+    }
+  }
+
 
   class BlockContext(prefix: String, suffix: String) extends Context {
     val values = HashMap[Symbol, Value]()
@@ -106,8 +136,9 @@ class JavaScript {
     }
     def source(out: Writer) {
       out.write(prefix)
-      contexts.foreach {context => context.source(out)}
+      contexts.foreach {context => context.source(out); out.write("\n")}
       out.write(suffix)
+      out.write("\n")
     }
   }
 
@@ -131,10 +162,6 @@ class JavaScript {
   }
 
 
-/*
-  case class Range(start: Int, end: Int) extends Seq[Int] {
-  }
-*/
 
   final val TYPE_INT = classOf[Int]
 
@@ -193,26 +220,46 @@ class JavaScript {
     out.toString
   }
 
+  /*------------------------------------------------------------------
+    Define Val.
+  ------------------------------------------------------------------*/
+
   object Val {
-    def update[T <: Context](name: Symbol, value: T): T = {
+    def apply(name: Symbol, value: JSInt): JSInt = {
+      val v = VInt(name)
       current += DefineVal(name, value)
-      value
+      v
+    }
+    def apply(name: Symbol, value: JSString): JSString = {
+      val v = VString(name)
+      current += DefineVal(name, value)
+      v
     }
   }
 
+  /*------------------------------------------------------------------
+    Implicit conversions.
+  ------------------------------------------------------------------*/
 
   implicit def int2value(value: Int) = CInt(value)
-
+  implicit def string2value(value: String) = CString(value)
 
   /*------------------------------------------------------------------
     JavaScript values.
   ------------------------------------------------------------------*/
 
   object Console {
-    def log(message: String) {
+    def log(message: Context) {
       current += CallMethod("console.log", List(message))
     }
   }
 
   val console = Console
 }
+
+
+
+/*
+  case class Range(start: Int, end: Int) extends Seq[Int] {
+  }
+*/
