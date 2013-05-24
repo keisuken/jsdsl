@@ -173,7 +173,7 @@ class JavaScript {
       methods.foreach {method =>
         out.write("  this.")
         out.write(method.name.name)
-        out.write(" = fuction(")
+        out.write(" = function(")
         csv(method.args, out)
         out.write(") {\n")
         method.proc.foreach {c =>
@@ -183,7 +183,7 @@ class JavaScript {
         }
         out.write("  };\n")
       }
-      out.write("}\n")
+      out.write("}")
     }
   }
 
@@ -264,7 +264,7 @@ class JavaScript {
       case v: Boolean => if (v) out.write("true") else out.write("false")
       case v: Int => out.write(v.toString)
       case v: String => string(v, out)
-      case v: Symbol => string(v.name, out)
+      case v: Symbol => out.write(v.name)
       case _ =>
         throw new CompileException("Illegal literal or value: " + value)
     }
@@ -310,11 +310,19 @@ class JavaScript {
       current += DefineVal(name, value)
       v
     }
+/*
     def apply(name: Symbol, value: VObject): VObject = {
       current += DefineVal(name, value)
       value
     }
+*/
   }
+
+/*
+  object New {
+    def apply[T: ClassTag]: Class[_] = implicitly[ClassTag[T]].runtimeClass
+  }
+*/
 
   /*------------------------------------------------------------------
     Implicit conversions.
@@ -334,18 +342,6 @@ class JavaScript {
   }
 
   val console = Console
-
-  DefineClass('Hello,
-    DefineMethod('greeting, 'person) {
-      console.log("Hello, " + VString('person) + ", world!")
-    }
-  )
-
-  case class Hello(name: Symbol) extends VObject {
-    def greeting(person: JSString) {
-      current += CallMethod(name, 'greeting, List(person))
-    }
-  }
 
 }
 
