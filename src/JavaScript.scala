@@ -126,6 +126,15 @@ class JavaScript {
     }
   }
 
+  /*------------------------------------------------------------------
+    Object
+  ------------------------------------------------------------------*/
+
+  trait VObject extends Context with Value
+
+  /*------------------------------------------------------------------
+    Block context
+  ------------------------------------------------------------------*/
 
   class BlockContext(prefix: String, suffix: String) extends Context {
     val values = HashMap[Symbol, Value]()
@@ -142,9 +151,70 @@ class JavaScript {
     }
   }
 
-  case class CallMethod(name: String, args: Seq[Any]) extends Context {
+  /*------------------------------------------------------------------
+    Other contexts
+  ------------------------------------------------------------------*/
+
+  case class CallFunction(name: String, args: Seq[Any]) extends Context {
     def source(out: Writer) {
       out.write(name)
+      out.write("(")
+      csv(args, out)
+      out.write(");")
+    }
+  }
+
+  class DefineClass(name: Symbol, methods: Seq[DefineMethod])
+    extends Context {
+    def source(out: Writer) {
+      out.write("function ")
+      out.write(name.name)
+      out.write("() {\n")
+      methods.foreach {method =>
+        out.write("  this.")
+        out.write(method.name.name)
+        out.write(" = fuction(")
+        csv(method.args, out)
+        out.write(") {\n")
+        method.proc.foreach {c =>
+          out.write("    ")
+          c.source(out)
+          out.write("\n")
+        }
+        out.write("  };\n")
+      }
+      out.write("}\n")
+    }
+  }
+
+  object DefineClass {
+    def apply(name: Symbol, methods: DefineMethod*) {
+      current += new DefineClass(name, methods)
+    }
+  }
+
+  class DefineMethod(
+    val name: Symbol, val args: Seq[Symbol], val proc: Seq[Context]) {
+  }
+
+  object DefineMethod {
+    def apply(name: Symbol, args: Symbol*)(proc: => Unit): DefineMethod = {
+      val prevCurrent = current
+      val block = new BlockContext("", "")
+      current = block
+      proc
+      current = prevCurrent
+      new DefineMethod(name, args, block.contexts)
+    }
+  }
+
+
+  case class CallMethod(instance: Symbol, method: Symbol, args: Seq[Any])
+    extends Context {
+    def source(out: Writer) {
+      out.write(instance.name)
+      out.write(".")
+      out.write(method.name)
       out.write("(")
       csv(args, out)
       out.write(");")
@@ -161,9 +231,9 @@ class JavaScript {
     }
   }
 
-
-
-  final val TYPE_INT = classOf[Int]
+  /*------------------------------------------------------------------
+    Private utilities
+  ------------------------------------------------------------------*/
 
   protected val root = new BlockContext("", "")
   protected var current: BlockContext = root
@@ -194,6 +264,7 @@ class JavaScript {
       case v: Boolean => if (v) out.write("true") else out.write("false")
       case v: Int => out.write(v.toString)
       case v: String => string(v, out)
+      case v: Symbol => string(v.name, out)
       case _ =>
         throw new CompileException("Illegal literal or value: " + value)
     }
@@ -211,6 +282,10 @@ class JavaScript {
 
   protected def csv(values: Seq[Any], out: Writer): Unit =
     implode(values, ", ", out)
+
+  /*------------------------------------------------------------------
+    Output source
+  ------------------------------------------------------------------*/
 
   def source(out: Writer): Unit = root.source(out)
 
@@ -235,6 +310,10 @@ class JavaScript {
       current += DefineVal(name, value)
       v
     }
+    def apply(name: Symbol, value: VObject): VObject = {
+      current += DefineVal(name, value)
+      value
+    }
   }
 
   /*------------------------------------------------------------------
@@ -250,11 +329,24 @@ class JavaScript {
 
   object Console {
     def log(message: Context) {
-      current += CallMethod("console.log", List(message))
+      current += CallFunction("console.log", List(message))
     }
   }
 
   val console = Console
+
+  DefineClass('Hello,
+    DefineMethod('greeting, 'person) {
+      console.log("Hello, " + VString('person) + ", world!")
+    }
+  )
+
+  case class Hello(name: Symbol) extends VObject {
+    def greeting(person: JSString) {
+      current += CallMethod(name, 'greeting, List(person))
+    }
+  }
+
 }
 
 

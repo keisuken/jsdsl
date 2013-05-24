@@ -20,22 +20,16 @@ object Sample1 extends App {
       console.log(s"#${i}. ${i * i}")
     }
 
-    // DOM operation.
-/*
-    val name = $("#person_name").text
-    $("#message").text("Hello, " + name + "world!")
-*/
-
     // Define class.
-/*
-    class Hello extends VObject {
-      def greeting(name: VString): VString = {
-        ...
-      }
-    }
-    val hello = new Hello
-    console.log(hello.greeting("JS"))
-*/
+    val hello = new Hello('hello)
+    hello.greeting("JS")
 
   }.source)
 }
+
+
+/*
+    // DOM operation.
+    val name = $("#person_name").text
+    $("#message").text("Hello, " + name + "world!")
+*/
